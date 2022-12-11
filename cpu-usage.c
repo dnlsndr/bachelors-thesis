@@ -1,25 +1,26 @@
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/bpf.h>
 #include <linux/sched.h>
+#include <linux/perf_event.h>
+// struct data_t
+// {
+//     u32 pid;
+//     u64 usage;
+//     char comm[TASK_COMM_LEN];
+// };
 
-struct data_t
+BPF_HASH(usage, int, int);
+BPF_HASH(last_usage, int, int);
+
+int measure_cpu_usage(struct bpf_perf_event_data *ctx)
 {
-    u32 pid;
-    u64 usage;
-    char comm[TASK_COMM_LEN];
-};
+    int pid = bpf_get_current_pid_tgid();
 
-BPF_PERF_OUTPUT(usage);
+    bpf_perf_prog_read_value(ctx, struct bpf_perf_event_value * buf, u32 buf_size)
 
-int measure_cpu_usage(struct pt_regs *ctx)
-{
-    struct data_t data = {};
+        int cpu_usage = 1000;
 
-    data.pid = bpf_get_current_pid_tgid();
-    data.usage = 50;
-    bpf_get_current_comm(&data.comm, sizeof(data.comm));
-
-    usage.perf_submit(ctx, &data, sizeof(data));
+    usage.update(&pid, &cpu_usage);
 
     return 0;
 }
