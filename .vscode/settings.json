@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "ptrace.h": "c",
+        "bpf_common.h": "c",
+        "bpf.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c"
+    }
+}
