@@ -11,7 +11,6 @@
 // };
 
 BPF_HASH(usage, int, long);
-BPF_HASH(last, int, long);
 
 // BPF_HASH(last_usage, int, int);
 

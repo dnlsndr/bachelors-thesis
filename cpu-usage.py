@@ -23,7 +23,7 @@ b.attach_perf_event(
     ev_type=bcc.PerfType.HARDWARE,
     ev_config=bcc.PerfHWConfig.CPU_CYCLES,
     fn_name="measure_cpu_usage",
-    sample_freq=10
+    sample_freq=10,
 )
 
 # def print_event(cpu, data, size):
@@ -38,12 +38,14 @@ while 1:
 
     usage = b.get_table("usage")
 
-    # print(tabulate(usage.items()))
+    print(usage.items())
 
+    if len(usage.items()) == 0:
+        continue
 
     data = list(map(lambda datapoint: (str(datapoint[0].value), datapoint[1].value), usage.items()))
 
-    data.sort(key=lambda item: item[1])
+    data.sort(key=lambda item: int(item[0]))
 
     x, y = zip(*data)
 
@@ -53,16 +55,16 @@ while 1:
     # labels = list(map(lambda process: str(process[0].value), data))
 
     # [ '\n'.join(wrap(l, 20)) for l in labels ]
-
+    plt.figure(figsize=(10, len(x) * 0.2))
     # values = list(map(lambda process: process[1].value, data))
     # print(labels, values)
-    plt.bar(x, y)
+    plt.barh(x, y)
     plt.savefig('plot.png')
     plt.clf()
 
     # for k, v in sorted(usage.items(), key=lambda usage: usage[1].value):
     #     print("%10d \"%s\"" % (v.value, k.c.encode('string-escape')))
     # b.perf_buffer_poll()
-    time.sleep(2)
+    time.sleep(0.5)
     # print(b['usage'])
 
