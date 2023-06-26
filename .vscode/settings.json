@@ -10,6 +10,15 @@
         "types.h": "c",
         "byteorder.h": "c",
         "ioctl.h": "c",
-        "libbpf.h": "c"
+        "libbpf.h": "c",
+        "optional": "c",
+        "ratio": "c",
+        "system_error": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "variant": "c",
+        "chrono": "c"
     }
 }

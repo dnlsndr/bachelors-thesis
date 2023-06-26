@@ -1,68 +1,59 @@
-#include <linux/kernel.h>
-#include <linux/ptrace.h>
-#include <uapi/linux/bpf.h>
-#include <uapi/linux/bpf_perf_event.h>
-#include <uapi/linux/perf_event.h>
-// struct data_t
-// {
-//     u32 pid;
-//     u64 usage;
-//     char comm[TASK_COMM_LEN];
-// };
+#include <uapi/linux/ptrace.h>
+#include <linux/sched.h>
 
-BPF_HASH(usage, int, long);
+#define MINBLOCK_US 1
 
-// BPF_HASH(last_usage, int, int);
-
-int measure_cpu_usage(struct bpf_perf_event_data *ctx)
+struct key_t
 {
+    char name[TASK_COMM_LEN];
+    int pid;
+};
+BPF_HASH(counts, struct key_t);
+BPF_HASH(start, u32);
+BPF_STACK_TRACE(stack_traces, 10240);
 
-    struct bpf_perf_event_value value_buf;
+int oncpu(struct pt_regs *ctx, struct task_struct *prev)
+{
+    u32 pid;
+    u64 ts, *tsp;
 
-    long result = bpf_perf_prog_read_value(ctx, (void *)&value_buf, sizeof(struct bpf_perf_event_value));
-
-    if (result < 0)
+    // record previous thread sleep time
+    if (!(prev->flags & PF_KTHREAD))
     {
-        return 0;
+        pid = prev->pid;
+        ts = bpf_ktime_get_ns();
+        start.update(&pid, &ts);
     }
 
-    int pid = bpf_get_current_pid_tgid();
+    // calculate current thread's delta time
+    pid = bpf_get_current_pid_tgid();
+    tsp = start.lookup(&pid);
+    if (tsp == 0)
+        return 0; // missed start or filtered
+    u64 delta = bpf_ktime_get_ns() - *tsp;
+    start.delete(&pid);
+    delta = delta / 1000;
+    if (delta < MINBLOCK_US)
+        return 0;
 
-    // bpf_trace_printk("%d", &data);
+    // create map key
+    u64 zero = 0, *val;
+    struct key_t key = {};
+    int stack_flags = 0;
 
-    // int time = bpf_ktime_get_ns();
+    /*
+    if (!(prev->flags & PF_KTHREAD))
+      stack_flags |= BPF_F_USER_STACK;
+    */
 
-    // if (time < 0)
-    // {
-    //     return 0;
-    // }
+    bpf_get_current_comm(&key.name, sizeof(key.name));
+    // key.stack_id = stack_traces.get_stackid(ctx, stack_flags);
+    key.pid = prev->pid;
 
-    usage.update(&pid, &value_buf);
-
-    // u64 ts, *tsp, delta;
-
-    // // attempt to read stored timestamp
-    // u64 tsp = last.lookup(&pid);
-    // if (tsp != NULL)
-    // {
-    //     delta = bpf_ktime_get_ns() - *tsp;
-
-    //     usage.update(&pid, &delta);
-
-    //     if (delta < 1000000000)
-    //     {
-    //         // output if time is less than 1 second
-    //         bpf_trace_printk("%d\\n", delta / 1000000);
-    //     }
-    //     last.delete(&key);
-    // }
-
-    // if ()
-    // pid_hist.update(&pid, &time);
-
-    // bpf_perf_prog_read_value(ctx, struct bpf_perf_event_value * buf, u32 buf_size);
-
-    // int cpu_usage = 1000;
-
+    val = counts.lookup_or_try_init(&key, &zero);
+    if (val)
+    {
+        (*val) += delta;
+    }
     return 0;
 }
