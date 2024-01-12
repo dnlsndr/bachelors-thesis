@@ -1,4 +1,4 @@
-from prometheus_client import Gauge
+from prometheus_client import Gauge, Counter
 import psutil
 from bcc import BPF
 import matplotlib.pyplot as plt
@@ -6,6 +6,7 @@ from matplotlib.animation import FuncAnimation
 import os
 import re
 import ctypes
+import copy
 
 dirname = os.path.dirname(__file__)
 filename = os.path.join(dirname, './ebpf.c')
@@ -14,7 +15,7 @@ print(filename)
 
 # Load BPF program
 b = None
-initial_memory_usage = {}
+pid_map = {}
 
 
 def init(inputConfig):
@@ -30,13 +31,23 @@ def init(inputConfig):
     b.attach_kprobe(event="kfree", fn_name="dealloc")
     global g
     g = Gauge('ebpf_memory_utilization', 'memory utilization', ['pid', 'name'])
+    global allocs_counter
+    allocs_counter = Counter('ebpf_memory_allocs',
+                             'memory allocs', ['pid', 'name'])
+    global frees_counter
+    frees_counter = Counter('ebpf_memory_frees',
+                            'memory frees', ['pid', 'name'])
 
+    get_all_processes()
+
+
+def get_all_processes():
     for proc in psutil.process_iter():
-        if proc.pid not in initial_memory_usage:
-            initial_memory_usage[proc.pid] = read_initial_memory_usage(
+        if proc.pid not in pid_map:
+            pid_map[proc.pid] = read_initial_memory_usage(
                 proc.pid)
             g.labels(pid=proc.pid, name=proc.name()).set(
-                initial_memory_usage[proc.pid])
+                pid_map[proc.pid])
 
 
 def get_process_name(pid):
@@ -59,38 +70,31 @@ def read_initial_memory_usage(pid):
 
 
 def update():
-    data = b["usage"]
-    b["usage"].clear()
+    usage = copy.deepcopy(b["usage"])
+    allocs = copy.deepcopy(b["allocs"])
+    frees = copy.deepcopy(b["frees"])
 
     g.clear()
 
-    for k, v in data.items():
-        # try:
-        #     process = psutil.Process(k.value)
-        # except psutil.NoSuchProcess:
-        #     g.remove(pid=k.value)
-        #     continue
-        # if not process.is_running():
-        #     g.remove(pid=k.value)
-        #     continue
-        if k.value not in initial_memory_usage:
-            initial_memory_usage[k.value] = read_initial_memory_usage(k.value)
+    for k, v in usage.items():
+        if k.value not in pid_map:
+            pid_map[k.value] = read_initial_memory_usage(k.value)
 
-    for pid, value in initial_memory_usage.items():
-        # try catch
-        try:
-            process = psutil.Process(pid)
-        except psutil.NoSuchProcess:
-            continue
-
+    for pid, value in pid_map.items():
         name = get_process_name(pid)
 
-        # add data[pid].value if its not None
         final = value + \
-            (data[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in data else 0)
+            (usage[ctypes.c_uint32(pid)].value if ctypes.c_uint32(
+                pid) in usage else 0)
 
-        # if ctypes.c_uint32(pid) in data:
-        #     print("data", pid, data[ctypes.c_uint32(pid)].value)
         g.labels(pid=pid, name=name).set(final)
 
-    # loop through all processes and prefill the initial memory usage
+        allocs_counter.labels(pid=pid, name=name).inc(
+            allocs[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in allocs else 0)
+
+        frees_counter.labels(pid=pid, name=name).inc(
+            frees[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in frees else 0)
+
+    b["usage"].clear()
+    b["allocs"].clear()
+    b["frees"].clear()
