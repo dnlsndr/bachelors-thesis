@@ -54,7 +54,7 @@ def update():
     data = b["usage"].items()
     b["usage"].clear()
 
-    g.clear()
+    # g.clear()
 
     for k, v in data:
         if k.value == 0:
