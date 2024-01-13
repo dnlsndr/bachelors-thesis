@@ -21,30 +21,37 @@ def update_probe(module, config, probe_name):
         time.sleep(int(config['aggregation_interval']) / 1000)
 
 
+# get args, the first argument specifies a pobe name. If no argument is given, all probes are started
+probe_name = None
+if len(os.sys.argv) > 1:
+    probe_name = os.sys.argv[1]
+
+print(f"Starting probes with name {probe_name}")
 # List all folders in the ./probes directory, and import the probe.py
 threads = []
 for folder in os.listdir("./probes"):
+
+    if probe_name is not None and folder != probe_name:
+        continue
+
     if not os.path.isdir(os.path.join("./probes", folder)):
         continue
-    try:
-        with open(os.path.join("./probes", folder, "setup.toml")) as f:
-            config = toml.load(f)
-            print(
-                f"Loaded aggregation interval for probe {folder}: {config}")
 
-        module = importlib.import_module(f"probes.{folder}.probe")
-        module.init(config)
+    with open(os.path.join("./probes", folder, "setup.toml")) as f:
+        config = toml.load(f)
+        print(
+            f"Loaded aggregation interval for probe {folder}: {config}")
 
-        # Create and start a thread for each probe
-        thread = threading.Thread(target=update_probe, args=(
-            module, config, folder))
-        # Optional: make threads daemon if you want them to exit when the main program exits
-        thread.daemon = True
-        thread.start()
-        threads.append(thread)
+    module = importlib.import_module(f"probes.{folder}.probe")
+    module.init(config)
 
-    except Exception as e:
-        print(f"Unable to import probe from folder {folder}: {e}")
+    # Create and start a thread for each probe
+    thread = threading.Thread(target=update_probe, args=(
+        module, config, folder))
+    # Optional: make threads daemon if you want them to exit when the main program exits
+    thread.daemon = True
+    thread.start()
+    threads.append(thread)
 
 
 # Create a independent thread that loops forever and prints the shared store
