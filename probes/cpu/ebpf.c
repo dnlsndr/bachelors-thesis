@@ -1,5 +1,4 @@
 #include <uapi/linux/ptrace.h>
-#include <linux/sched.h>
 
 BPF_HASH(start, u32);
 BPF_HASH(cpu_time, u32, u64);

@@ -26,9 +26,7 @@ def init(inputConfig):
     dirname = os.path.dirname(__file__)
     filename = os.path.join(dirname, 'ebpf.c')
     b = BPF(src_file=filename)
-    b.attach_kprobe(event="__kmalloc", fn_name="alloc")
-    b.attach_kretprobe(event="__kmalloc", fn_name="retalloc")
-    # b.attach_kprobe(event="kfree", fn_name="dealloc")
+
     global g
     g = Gauge('ebpf_memory_utilization', 'memory utilization', ['pid', 'name'])
     global allocs_counter
@@ -38,16 +36,15 @@ def init(inputConfig):
     frees_counter = Counter('ebpf_memory_frees',
                             'memory frees', ['pid', 'name'])
 
-    get_all_processes()
-
-
-def get_all_processes():
     for proc in psutil.process_iter():
-        if proc.pid not in pid_map:
-            pid_map[proc.pid] = read_initial_memory_usage(
-                proc.pid)
-            g.labels(pid=proc.pid, name=proc.name()).set(
-                pid_map[proc.pid])
+        b['usage'][ctypes.c_int(proc.pid)] = ctypes.c_uint64(
+            read_initial_memory_usage(proc.pid)
+        )
+
+    b.attach_tracepoint(tp="kmem:kmalloc", fn_name="trace_alloc")
+    b.attach_tracepoint(tp="kmem:kmem_cache_alloc", fn_name="trace_alloc")
+    b.attach_tracepoint(tp="kmem:kfree", fn_name="trace_free")
+    b.attach_tracepoint(tp="kmem:kmem_cache_free", fn_name="trace_free")
 
 
 def get_process_name(pid):
@@ -70,35 +67,35 @@ def read_initial_memory_usage(pid):
 
 
 def update():
-    usage = copy.deepcopy(b["usage"])
-    allocs = copy.deepcopy(b["allocs"])
-    frees = copy.deepcopy(b["frees"])
+    usage = b["usage"]
+    allocs = b["allocs"]
+    frees = b["frees"]
 
-    g.clear()
+    for pid, value in usage.items():
+        name = get_process_name(pid.value)
 
-    for k, v in usage.items():
-        if k.value not in pid_map:
-            pid_map[k.value] = read_initial_memory_usage(k.value)
-
-    for pid, value in pid_map.items():
-        name = get_process_name(pid)
-
-        final = value + \
-            (usage[ctypes.c_uint32(pid)].value if ctypes.c_uint32(
-                pid) in usage else 0)
-
+        # print(name, pid, value.value)
         if name == "allocator":
-            print("allocator", pid, usage.items(), usage[ctypes.c_uint32(pid)].value if ctypes.c_uint32(
-                pid) in usage else 0)
+            print("allocator size", pid, value.value)
 
-        g.labels(pid=pid, name=name).set(final)
+        # g.labels(pid=pid, name=name).set(value)
 
-        allocs_counter.labels(pid=pid, name=name).inc(
-            allocs[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in allocs else 0)
+        # allocs_counter.labels(pid=pid, name=name).inc(
+        #     allocs[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in allocs else 0)
 
-        frees_counter.labels(pid=pid, name=name).inc(
-            frees[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in frees else 0)
+        # frees_counter.labels(pid=pid, name=name).inc(
+        #     frees[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in frees else 0)
+
+    for pid, value in allocs.items():
+        name = get_process_name(pid.value)
+        if name == "allocator":
+            print("allocator allocs", pid, value.value)
+
+    for pid, value in frees.items():
+        name = get_process_name(pid.value)
+        if name == "allocator":
+            print("allocator frees", pid, value.value)
 
     # b["usage"].clear()
-    b["allocs"].clear()
-    b["frees"].clear()
+    # b["allocs"].clear()
+    # b["frees"].clear()
