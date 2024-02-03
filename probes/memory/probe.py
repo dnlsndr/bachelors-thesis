@@ -28,7 +28,7 @@ def init(inputConfig):
     b = BPF(src_file=filename)
     b.attach_kprobe(event="__kmalloc", fn_name="alloc")
     b.attach_kretprobe(event="__kmalloc", fn_name="retalloc")
-    # b.attach_kprobe(event="kfree", fn_name="dealloc")
+    b.attach_kprobe(event="kfree", fn_name="dealloc")
     global g
     g = Gauge('ebpf_memory_utilization', 'memory utilization', ['pid', 'name'])
     global allocs_counter
@@ -87,10 +87,6 @@ def update():
             (usage[ctypes.c_uint32(pid)].value if ctypes.c_uint32(
                 pid) in usage else 0)
 
-        if name == "allocator":
-            print("allocator", pid, usage.items(), usage[ctypes.c_uint32(pid)].value if ctypes.c_uint32(
-                pid) in usage else 0)
-
         g.labels(pid=pid, name=name).set(final)
 
         allocs_counter.labels(pid=pid, name=name).inc(
@@ -99,6 +95,6 @@ def update():
         frees_counter.labels(pid=pid, name=name).inc(
             frees[ctypes.c_uint32(pid)].value if ctypes.c_uint32(pid) in frees else 0)
 
-    # b["usage"].clear()
+    b["usage"].clear()
     b["allocs"].clear()
     b["frees"].clear()

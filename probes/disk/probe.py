@@ -3,7 +3,7 @@ from bcc import BPF
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import os
-from prometheus_client import Gauge, Counter
+from prometheus_client import Gauge
 
 
 b = None
@@ -14,29 +14,18 @@ data_io = {}
 def init(inputConfig):
     global config
     config = inputConfig
-    print("init disk probe")
+    print("init cpu probe")
     global b
     dirname = os.path.dirname(__file__)
     filename = os.path.join(dirname, 'ebpf.c')
     b = BPF(src_file=filename)
-    b.attach_tracepoint(tp="block:block_rq_complete",
-                        fn_name="complete")
-    b.attach_tracepoint(tp="block:block_rq_issue",
-                        fn_name="issue")
-
-    global read_bytes
-    read_bytes = Gauge('ebpf_disk_reads_bytes',
-                       'disk reads bytes', ['pid', 'name'])
-
-    global write_bytes
-    write_bytes = Gauge('ebpf_disk_writes_bytes',
-                        'disk writes bytes', ['pid', 'name'])
-
-    global reads
-    reads = Gauge('ebpf_disk_reads', 'disk reads', ['pid', 'name'])
-
-    global writes
-    writes = Gauge('ebpf_disk_writes', 'disk writes', ['pid', 'name'])
+    b.attach_kprobe(event="vfs_read", fn_name="vfs_read_probe")
+    b.attach_kprobe(event="vfs_write", fn_name="vfs_write_probe")
+    global throughput
+    global iops
+    throughput = Gauge('ebpf_disk_throughput',
+                       'disk throughput', ['pid', 'name', 'type'])
+    iops = Gauge('ebpf_disk_iops', 'disk iops', ['pid', 'name', 'type'])
 
 
 def get_process_name(pid):
@@ -48,21 +37,17 @@ def get_process_name(pid):
 
 def update():
     data = b["io_stats"].items()
+    b["io_stats"].clear()
 
-    # read_bytes.clear()
-    # write_bytes.clear()
-    # reads.clear()
-    # writes.clear()
+    throughput.clear()
+    iops.clear()
 
     for k, v in data:
         name = get_process_name(k.value)
 
-        read_bytes.labels(pid=k.value, name=name).set(v.read_bytes)
-
-        write_bytes.labels(pid=k.value, name=name).set(v.write_bytes)
-
-        reads.labels(pid=k.value, name=name).set(v.read_iops)
-
-        writes.labels(pid=k.value, name=name).set(v.write_iops)
-
-    # b["io_stats"].clear()
+        throughput.labels(pid=k.value, name=name,
+                          type='read').set(v.read_bytes)
+        throughput.labels(pid=k.value, name=name,
+                          type='write').set(v.write_bytes)
+        iops.labels(pid=k.value, name=name, type='read').set(v.read_iops)
+        iops.labels(pid=k.value, name=name, type='write').set(v.write_iops)
