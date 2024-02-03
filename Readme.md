@@ -1,6 +1,6 @@
 # eBPF benchmarking system sample implementation
 
-This was created for my [bachelors thesis](). It utilizes eBPF to measure the performance of a system.
+This was created for my [bachelors thesis](https://github.com/dnlsndr/bachelors-ebpf/blob/main/assets/bachelors_thesis_daniel_schneider_final.pdf). It utilizes eBPF to measure the performance of a system.
 
 ## Metrics
 
@@ -25,5 +25,5 @@ sudo python main.py
 
 ## Functionality
 
-Most of the functionality can be found in my [bachelors thesis](). The main.py file is the entry point of the program.
+Most of the functionality can be found in my [bachelors thesis](https://github.com/dnlsndr/bachelors-ebpf/blob/main/assets/bachelors_thesis_daniel_schneider_final.pdf). The main.py file is the entry point of the program.
 It schedules the probes and starts the main aggregator. Each probe is responsible of collecting a specific metric and the aggregator is responsible to correctly aggregate these metrics, which are then published via the data advertisement API. This API is based on the Prometheus API and can be accessed via the [http://localhost:8000/metrics](http://localhost:8000/metrics) endpoint.
