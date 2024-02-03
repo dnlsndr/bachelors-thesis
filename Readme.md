@@ -1,6 +1,6 @@
-# eBPF benchmarking system sample implementation
+# A Symphony of Metrics: Assessing the Advantages of eBPF over conventional Benchmarking Tools
 
-This was created for my [bachelors thesis](https://github.com/dnlsndr/bachelors-ebpf/blob/main/assets/bachelors_thesis_daniel_schneider_final.pdf). It utilizes eBPF to measure the performance of a system.
+This is an eBPF benchmarking system reference implementation and was created for my [bachelors thesis](https://github.com/dnlsndr/bachelors-ebpf/blob/main/assets/bachelors_thesis_daniel_schneider_final.pdf). It utilizes eBPF to measure the utilization of system resources.
 
 ## Metrics
 
